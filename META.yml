@@ -1,8 +1,8 @@
 --- #YAML:1.0
 name:                PDF-Reuse-Barcode
-version:             0.06
+version:             0.07
 abstract:            ~
-license:             ~
+license:             perl
 author:
     - Lars Lundberg larslund@cpan.org
 generated_by:        ExtUtils::MakeMaker version 6.42_01

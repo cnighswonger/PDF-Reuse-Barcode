@@ -5,9 +5,10 @@ use PDF::Reuse;
 use strict;
 use warnings;
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 my ($str, $xsize, $ysize, $height, $sPtn, @sizes, $length, $value, %default);
+my $qrcode = 0;
 
 sub init
 {  %default   = ( value           => '0000000',
@@ -18,10 +19,15 @@ sub init
                   ysize           => 1,
                   rotate          => 0,
                   background      => '1 1 1',
+                  graybackground  => 1,
                   drawbackground  => 1,
                   text            => 'yes',
                   prolong         => 0,
                   hide_asterisk   => 0,
+                  modulesize      => 1,
+                  qr_ecc          => 'M',
+                  qr_version      => 1,
+                  qr_padding      => 0,
                   mode            => 'graphic');
    $str    = '';
    $xsize  = 1;
@@ -52,7 +58,27 @@ sub general1
 }
 
 sub general2
-{  $length     = 20 + (length($sPtn) * 0.9);
+{  if ($qrcode)
+   {  my $m      = $default{'modulesize'};
+      my @rows   = split(/\n/, $sPtn);
+      $length = length($rows[0]) * $m;
+      $height = (1 + scalar(@rows)) * $m;
+      my $step   = 1;
+
+      if ($default{'drawbackground'})
+      {   $str .= "$default{'graybackground'} g\n";
+         $str .= "0 0 $length $height re\n";
+         $str .= 'f*' . "\n";
+         $str .= "0 g\n";
+      }
+      prAdd($str);
+
+      @sizes = prFontSize(12);
+
+      $str = Qr( 0, $step, $sPtn);
+   }
+   else
+   {  $length     = 20 + (length($sPtn) * 0.9);
    my $height  = 38;
    my $step    = 9;
    my $prolong = 0;
@@ -89,10 +115,13 @@ sub general2
           $str .= Bar( 10, $step, $sPtn);
        }
     }
+   }
+
     $str .= "B\n";
     prAdd($str);
 
 }
+
 
 sub general3
 {  $str = "Q\n";
@@ -108,7 +137,13 @@ sub standardEnd
        prFontSize(10);
        my $textLength = length($value) * 6;
        my $start = ($length - $textLength) / 2;
+       if ($qrcode) {
+          my $quiet = sprintf("%.2f", 4 * $default{'modulesize'});
+          prText($start, 0-$quiet, $value);
+       }
+       else {
        prText($start, 1.5, $value);
+       }
        prFont($vec[3]);
     }
    general3();
@@ -130,6 +165,32 @@ sub Bar
        {  $string .= "$x $yEnd m\n $x $yG l\n";
        }
        $x = sprintf("%.2f", $x + 0.91);
+   }
+   return $string;
+}
+
+
+sub Qr
+{  my ($x, $y, $pattern) = @_;
+   my $xStart = sprintf("%.2f", $x);
+
+   my $m = $default{'modulesize'};
+   my $s = $default{'qr_padding'};
+   my $space = sprintf('%.2f', $m + $s);#
+
+   my $string = "0.01 w\n 0 G\n";
+   my @rows = split(/\n/, $pattern);
+   for my $row (reverse @rows) {
+       my $yEnd = sprintf("%.2f", $y + $m);
+       for (split(//, $row))
+       {   my $xEnd = sprintf("%.2f", $x + $m);
+           if ($_ eq '1')
+           {  $string .= "$x $y $m $m re\nf\n";
+           }
+           $x = sprintf("%.2f", $x + $space);
+       }
+       $x = $xStart;
+       $y = sprintf("%.2f", $y + $space);
    }
    return $string;
 }
@@ -585,6 +646,35 @@ sub UPCE
     1;
 }
 
+sub QRcode
+{  eval 'require GD::Barcode::QRcode';
+   $qrcode = 1;
+   init();
+   my %param = @_;
+   for (keys %param)
+    {   my $lc = lc($_);
+        if (exists $default{$lc})
+        {  $default{$lc} = $param{$_};
+        }
+        else
+        {  print STDERR "Unknown parameter $_ , not used \n";
+        }
+    }
+     $value = $default{'value'};
+
+    general1();
+
+   my $oGDBar = GD::Barcode::QRcode->new($value, {Ecc => $default{'qr_ecc'}, Version=>$default{'qr_version'}, ModuleSize => $default{'size'}});
+   if (! $oGDBar)
+   {  die "$GD::Barcode::QRcode::errStr\n";
+   }
+   else
+   {  $sPtn = $oGDBar->barcode();
+   }
+   standardEnd();
+   1;
+}
+
 
 1;
 
@@ -730,6 +820,11 @@ Creates Matrix2of5 barcodes from a string consisting of the numeric characters 0
 
 Creates a NW7 barcodes from a string consisting of the numeric characters 0-9
 
+=head2 QRcode
+
+Creates QRcodes from numeric, alphanumeric, binary or Kanji data (or a
+mixture of these).
+
 =head2 UPCA
 
 Translates a string of 11 or 12 digits to UPCA barcodes. The check number (the 12:th
@@ -768,6 +863,9 @@ A (decimal) number. If you define a number for this parameter, all sizes along
 the x- and y-axes will multiplied by this number. Also the text under the bars
 will be scaled.
 
+For QRcodes, the square of this number determines the number of 'modulesize'
+rectangles used to represent a single module (so 1=1, 2=4, 3=9, etc).
+
 =head2 xSize
 
 A (decimal) number. If you define a number for this parameter, all sizes along
@@ -791,20 +889,57 @@ pattern.
 Normally this parameter is 'yes', which will cause the digits to be written as
 text under the barcodes. If this parameter is '' or 0, the text will be suppressed.
 
-=head2 drawBackground
+=head2 drawbackground
 
 By default this parameter is 1, which will cause the barcodes to be drawn on
 a prepared background. If this parameter is '' or 0, the current background
 will be used, and the module will not try change it.
+
+For QRcodes, this will use the 'graybackground' color to draw a rectangle
+including the "quiet zone" around the QRcode.
 
 =head2 background
 
 Normally it is '1 1 1', which will draw a white background/box around the barcodes.
 Choose another RGB-combination if you want another color.
 
+For QRcodes, see 'graybackground'.
+
 =head2 rotate
 
 A degree to rotate the barcode image counter-clockwise
+
+=head1 QRCODE SPECIFIC PARAMETERS
+
+When generating QRcodes, some of the common parameters are ignored
+and some QRcode specific parameters are available for modifying
+features of the QRcode.  QRcodes are generated with a Gray colorspace.
+
+=head2 graybackground
+
+Normally it is 1, which will draw a white background/box around the QRcodes.
+Choose another value between 0 and 1 (inclusive) to specify a different shade of
+gray for the background.
+
+=head2 modulesize
+
+Defaults to 1.  Sets the size in Postscript points of the rectangle drawn for
+a single rectangle when drawing a QRcode.
+
+=head2 qr_ecc
+
+Defaults to 'M'.  Sets the error correction mode for the QRcode and can be
+set to L (Low), M (Medium), Q (Quartile), or H (High).
+
+=head2 qr_version
+
+Defaults to 1.  Set to an integer value from 1 to 40 to select the size
+and data capacity of the QRcode.
+
+=head2 qr_padding
+
+Defaults to 0.  Sets an amount of padding to insert between modules in the
+QRcode (may be useful if prints do not scan well).
 
 =head1 EXAMPLE
 
@@ -880,9 +1015,20 @@ A degree to rotate the barcode image counter-clockwise
   PDF::Reuse::Barcode::UPCA (x              => 400,
                              y              => 100,
                              value          => '12345678901',
-                             drawBackground => 0,
+                             drawbackground => 0,
                              rotate         => 90);
 
+  #################################################
+  # A QRcode with a 10% gray "quiet zone"
+  #################################################
+
+  PDF::Reuse::Barcode::QRcode (x              => 300,
+                               y              => 500,
+                               value          => 'http://example.org/',
+                               drawbackground => 1,
+                               graybackground => 0.9, # 10% gray
+                               qr_version     => 2,
+                               modulesize     => 2);
   prEnd();
 
 
@@ -914,6 +1060,7 @@ These modules are used for calculation of the barcode pattern
    GD::Barcode::ITF
    GD::Barcode::Matrix2of5
    GD::Barcode::NW7
+   GD::Barcode::QRcode
    GD::Barcode::UPCA
    GD::Barcode::UPCE
 

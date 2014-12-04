@@ -1,4 +1,4 @@
-PDF/Reuse/Barcode version 0.06
+PDF/Reuse/Barcode version 0.07
 ==============================
 
 This is a sub-module to PDF::Reuse. It creates barcode "images" to be used in
@@ -47,6 +47,7 @@ This module requires these other modules:
    GD::Barcode::ITF
    GD::Barcode::Matrix2of5
    GD::Barcode::NW7
+   GD::Barcode::QRcode
    GD::Barcode::UPCA
    GD::Barcode::UPCE
    Barcode::Code128

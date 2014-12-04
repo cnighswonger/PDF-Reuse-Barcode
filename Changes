@@ -1,5 +1,9 @@
 Revision history for Perl extension PDF::Reuse::Barcode.
 
+0.07 Wed Jun 25 2014
+     Added QRcode support.
+     Credits to Matthew Hunt for this.
+
 0.06 Sat Dec 27 2009
      As Acrobat 9 seems not handle Type 3 fonts correctly, only
      "graphic" bars are produced. The mode parameter is ignored.

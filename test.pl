@@ -13,6 +13,7 @@ ok(find('GD::Barcode::Industrial2of5'));
 ok(find('GD::Barcode::ITF'));
 ok(find('GD::Barcode::Matrix2of5'));
 ok(find('GD::Barcode::NW7'));
+ok(find('GD::Barcode::QRcode'));
 ok(find('GD::Barcode::UPCA'));
 ok(find('GD::Barcode::UPCE'));
 ok(find('Barcode::Code128'));
