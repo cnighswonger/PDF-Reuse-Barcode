@@ -1067,6 +1067,7 @@ These modules are used for calculation of the barcode pattern
 =head1 AUTHOR
 
 Lars Lundberg, larslund@cpan.org
+Chris Nighswonger, cnighs@cpan.org
 
 =head1 THANKS TO
 
@@ -1076,7 +1077,8 @@ modules for calculating the barcode patterns.
 
 =head1 COPYRIGHT
 
-Copyright (C) 2003 - 2008 Lars Lundberg, Solidez HB. All rights reserved.
+Copyright (C) 2003 - 2009 Lars Lundberg, Solidez HB. All rights reserved.
+Copyright (C) 2010 - 2014 Chris Nighswonger
 This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 
