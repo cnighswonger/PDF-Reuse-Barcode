@@ -5,6 +5,7 @@ abstract:            ~
 license:             perl
 author:
     - Lars Lundberg larslund@cpan.org
+    - Chris Nighswonger cnighs@cpan.org
 generated_by:        ExtUtils::MakeMaker version 6.42_01
 distribution_type:   module
 requires:
