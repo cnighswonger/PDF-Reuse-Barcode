@@ -19,6 +19,21 @@ WriteMakefile(
                              'GD::Barcode::UPCA'           => 0,
                              'GD::Barcode::UPCE'           => 0,
                              'Barcode::Code128'            => 0},
+    LICENSE => 'perl',
+    META_MERGE => {
+        'meta-spec' => { version => 2 },
+        resources => {
+            repository => {
+                type => 'git',
+                url  => 'https://github.com/cnighswonger/PDF-Reuse-Barcode.git',
+                web  => 'https://github.com/cnighswonger/PDF-Reuse-Barcode',
+            },
+            bugtracker => {
+                web => 'https://github.com/cnighswonger/PDF-Reuse-Barcode/issues',
+            },
+        },
+    },
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
-      (AUTHOR     => 'Lars Lundberg larslund@cpan.org') : ()),
+      (AUTHOR     => [ 'Lars Lundberg larslund@cpan.org',
+                       'Chris Nighswonger cnighs@cpan.org' ]) : ()),
 );
