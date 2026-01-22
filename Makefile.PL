@@ -32,6 +32,12 @@ WriteMakefile(
                 web => 'https://github.com/cnighswonger/PDF-Reuse-Barcode/issues',
             },
         },
+        provides => {
+            'PDF::Reuse::Barcode' => {
+                file    => 'Barcode.pm',
+                version => '0.09',
+            },
+        },
     },
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
       (AUTHOR     => [ 'Lars Lundberg larslund@cpan.org',

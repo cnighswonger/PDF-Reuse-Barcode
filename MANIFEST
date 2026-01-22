@@ -1,7 +1,10 @@
 Barcode.pm
 Changes
+CONTRIBUTING.md
+LICENSE
 Makefile.PL
 MANIFEST
 README
+SECURITY.md
 test.pl
 META.yml                                 Module meta-data (added by MakeMaker)
