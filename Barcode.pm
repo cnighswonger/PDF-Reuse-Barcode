@@ -5,7 +5,7 @@ use PDF::Reuse;
 use strict;
 use warnings;
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 my ($str, $xsize, $ysize, $height, $sPtn, @sizes, $length, $value, %default);
 my $qrcode = 0;
@@ -25,6 +25,7 @@ sub init
                   prolong         => 0,
                   hide_asterisk   => 0,
                   modulesize      => 1,
+                  textsize        => 10,
                   qr_ecc          => 'M',
                   qr_version      => 1,
                   qr_padding      => 0,
@@ -134,9 +135,26 @@ sub standardEnd
 
    if ($default{'text'})
    {   my @vec = prFont('C');
-       prFontSize(10);
-       my $textLength = length($value) * 6;
+       my $textsize = $default{'textsize'};
+       prFontSize($textsize);
+       # Courier is monospaced at 600/1000 em, so this is the exact
+       # rendered width, not an estimate. At the default size of 10 it
+       # reproduces the constant 6 this replaced.
+       my $textLength = length($value) * $textsize * 0.6;
        my $start = ($length - $textLength) / 2;
+       # Text wider than the barcode overflows the background box. That
+       # has always been possible -- a short QR value at the default size
+       # already does it -- so the box is only widened when the caller
+       # asked for a larger size than the default. Widening it
+       # unconditionally would change 0.09 output for existing callers,
+       # and clamping would silently ignore what was asked for.
+       if ($textsize > 10 && $textLength > $length)
+       {   my $extra = ($textLength - $length) / 2;
+           $start = 0 - $extra;
+           prAdd(sprintf("q %s rg %s 0 %s %s re f* Q\n",
+                         $default{'background'},
+                         -$extra, $textLength, $height));
+       }
        if ($qrcode) {
           my $quiet = sprintf("%.2f", 4 * $default{'modulesize'});
           prText($start, 0-$quiet, $value);
@@ -908,6 +926,25 @@ For QRcodes, see 'graybackground'.
 =head2 rotate
 
 A degree to rotate the barcode image counter-clockwise
+
+=head2 textsize
+
+Defaults to 10.  Sets the point size of the human readable text printed
+below the barcode.  The text is centred on the barcode automatically, so
+no other parameter needs adjusting when this changes.
+
+    PDF::Reuse::Barcode::Code39(x         => 100,
+                                y         => 600,
+                                value     => '1234567890',
+                                textsize  => 14);
+
+If the text comes out wider than the barcode itself -- a short value at a
+large size -- the background box is widened to hold it rather than the size
+being silently reduced.
+
+This applies to Code128, Code39, the 2of5 family, ITF, NW7 and QRcode.  The
+EAN and UPC functions place their text in fixed positions dictated by those
+symbologies and still use 10 point; C<textsize> is ignored there.
 
 =head1 QRCODE SPECIFIC PARAMETERS
 

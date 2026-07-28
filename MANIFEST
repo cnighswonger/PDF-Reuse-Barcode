@@ -6,5 +6,6 @@ Makefile.PL
 MANIFEST
 README
 SECURITY.md
+t/textsize.t
 test.pl
 META.yml                                 Module meta-data (added by MakeMaker)

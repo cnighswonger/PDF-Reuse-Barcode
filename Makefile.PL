@@ -19,6 +19,9 @@ WriteMakefile(
                              'GD::Barcode::UPCA'           => 0,
                              'GD::Barcode::UPCE'           => 0,
                              'Barcode::Code128'            => 0},
+    TEST_REQUIRES   => { 'Test::More' => 0,
+                         'File::Temp' => 0,
+                         'File::Spec' => 0 },
     LICENSE => 'perl',
     META_MERGE => {
         'meta-spec' => { version => 2 },
@@ -35,7 +38,7 @@ WriteMakefile(
         provides => {
             'PDF::Reuse::Barcode' => {
                 file    => 'Barcode.pm',
-                version => '0.09',
+                version => '0.10',
             },
         },
     },
