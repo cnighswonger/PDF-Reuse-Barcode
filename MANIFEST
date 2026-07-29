@@ -1,11 +1,13 @@
 Barcode.pm
 Changes
 CONTRIBUTING.md
+docs/ci-pin-maintenance.md
 LICENSE
 Makefile.PL
 MANIFEST
+MANIFEST.SKIP
+META.yml			Module meta-data (added by MakeMaker)
 README
 SECURITY.md
 t/textsize.t
 test.pl
-META.yml                                 Module meta-data (added by MakeMaker)
