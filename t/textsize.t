@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 8;
+use Test::More tests => 12;
 use File::Temp qw(tempdir);
 use File::Spec;
 
@@ -63,3 +63,42 @@ ok(defined $x_default && defined $x_large && $x_large < $x_default,
 my $none = render(text => '', textsize => 24);
 unlike($none, qr{/Ft1 \d+ Tf},
     'textsize does not override text => ""');
+
+# Codex review of #5: the overflow background is emitted after general2() has
+# already painted the bars, so a full-width rectangle would cover them. Only
+# the two side strips may be drawn.
+sub render_qr {
+    my (%opt) = @_;
+    my $file = File::Spec->catfile($dir, "qr$$" . int(rand 1e6) . '.pdf');
+    prInitVars();
+    prFile($file);
+    PDF::Reuse::Barcode::QRcode(x => 100, y => 400, value => 'HELLO', %opt);
+    prEnd();
+    open my $fh, '<', $file or BAIL_OUT "can't read $file: $!";
+    binmode $fh;
+    my $pdf = do { local $/; <$fh> };
+    close $fh;
+    unlink $file;
+    return $pdf;
+}
+
+my $overflow = render_qr(textsize => 24);
+my ($strips) = $overflow =~ m{^(q [\d.]+ g [-\d.]+ 0 [\d.]+ [\d.]+ re f\* [-\d.]+ 0 [\d.]+ [\d.]+ re f\* Q)$}m;
+ok($strips, 'overflowing text emits side background strips')
+    or diag("no strip operator found");
+
+SKIP: {
+    skip 'no strips emitted', 2 unless $strips;
+    my ($x1, $w1, $x2) = $strips =~ m{([-\d.]+) 0 ([\d.]+) [\d.]+ re f\* ([-\d.]+) 0};
+    # The left strip must end at 0 and the right strip must start at the box
+    # edge, so neither covers the span the barcode occupies.
+    cmp_ok($x1 + $w1, '<=', 0.001,
+        'left strip stops at the barcode edge, does not cover it');
+    cmp_ok($x2, '>=', 0,
+        'right strip starts at or beyond the barcode edge');
+}
+
+# drawbackground => 0 must stay honoured on the overflow path.
+my $nobg = render_qr(textsize => 24, drawbackground => 0);
+unlike($nobg, qr{re f\* [-\d.]+ 0 [\d.]+ [\d.]+ re f\*},
+    'drawbackground => 0 suppresses the overflow strips');

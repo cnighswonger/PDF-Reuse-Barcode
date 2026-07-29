@@ -4,11 +4,17 @@ use 5.006;
 use PDF::Reuse;
 use strict;
 use warnings;
+use Carp;
 
 our $VERSION = '0.10';
 
 my ($str, $xsize, $ysize, $height, $sPtn, @sizes, $length, $value, %default);
 my $qrcode = 0;
+
+# The point size barcode text has always used. The overflow handling below
+# keys off this so pre-0.10 output stays byte-identical; the two must not
+# drift apart.
+our $DEFAULT_TEXTSIZE = 10;
 
 sub init
 {  %default   = ( value           => '0000000',
@@ -25,7 +31,7 @@ sub init
                   prolong         => 0,
                   hide_asterisk   => 0,
                   modulesize      => 1,
-                  textsize        => 10,
+                  textsize        => $DEFAULT_TEXTSIZE,
                   qr_ecc          => 'M',
                   qr_version      => 1,
                   qr_padding      => 0,
@@ -135,25 +141,44 @@ sub standardEnd
 
    if ($default{'text'})
    {   my @vec = prFont('C');
+       # textsize reaches a PDF text operator directly, so a non-numeric
+       # or non-positive value would emit an invalid or invisible Tf
+       # rather than failing anywhere useful.
        my $textsize = $default{'textsize'};
+       unless (defined $textsize && $textsize =~ /^\d*\.?\d+$/ && $textsize > 0)
+       {   carp "Ignoring invalid textsize '"
+                . (defined $textsize ? $textsize : 'undef')
+                . "', using $DEFAULT_TEXTSIZE";
+           $textsize = $DEFAULT_TEXTSIZE;
+       }
        prFontSize($textsize);
        # Courier is monospaced at 600/1000 em, so this is the exact
        # rendered width, not an estimate. At the default size of 10 it
        # reproduces the constant 6 this replaced.
        my $textLength = length($value) * $textsize * 0.6;
        my $start = ($length - $textLength) / 2;
-       # Text wider than the barcode overflows the background box. That
-       # has always been possible -- a short QR value at the default size
-       # already does it -- so the box is only widened when the caller
-       # asked for a larger size than the default. Widening it
-       # unconditionally would change 0.09 output for existing callers,
-       # and clamping would silently ignore what was asked for.
-       if ($textsize > 10 && $textLength > $length)
+       # Text wider than the barcode overflows the background box. That has
+       # always been possible -- a short QR value at the default size
+       # already does it -- so the box is only extended when the caller
+       # asked for a larger size than the default. Extending it
+       # unconditionally would change pre-0.10 output, and clamping would
+       # silently ignore what was asked for.
+       #
+       # Only the two side strips are painted, never the span the barcode
+       # occupies: this runs after general2() has drawn the bars, so a
+       # full-width rectangle here would cover them.
+       if ($textsize > $DEFAULT_TEXTSIZE && $textLength > $length)
        {   my $extra = ($textLength - $length) / 2;
            $start = 0 - $extra;
-           prAdd(sprintf("q %s rg %s 0 %s %s re f* Q\n",
-                         $default{'background'},
-                         -$extra, $textLength, $height));
+           if ($default{'drawbackground'})
+           {   my ($colour, $op) = $qrcode
+                   ? ($default{'graybackground'}, 'g')
+                   : ($default{'background'},     'rg');
+               prAdd(sprintf("q %s %s %s 0 %s %s re f* %s 0 %s %s re f* Q\n",
+                             $colour, $op,
+                             -$extra, $extra, $height,
+                             $length, $extra, $height));
+           }
        }
        if ($qrcode) {
           my $quiet = sprintf("%.2f", 4 * $default{'modulesize'});
@@ -939,8 +964,16 @@ no other parameter needs adjusting when this changes.
                                 textsize  => 14);
 
 If the text comes out wider than the barcode itself -- a short value at a
-large size -- the background box is widened to hold it rather than the size
-being silently reduced.
+large size -- the background is extended on both sides to hold it, rather
+than the size being silently reduced.  This extension applies only when
+C<textsize> is above the default of 10: text can already overflow at the
+default size for some symbologies, and extending the background there
+would change the output of existing callers.  It also respects
+C<drawbackground>, so a caller who has turned the background off does not
+get one back.
+
+A C<textsize> that is not a positive number is ignored with a warning and
+the default is used.
 
 This applies to Code128, Code39, the 2of5 family, ITF, NW7 and QRcode.  The
 EAN and UPC functions place their text in fixed positions dictated by those
