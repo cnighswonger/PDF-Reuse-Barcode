@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 12;
+use Test::More tests => 20;
 use File::Temp qw(tempdir);
 use File::Spec;
 
@@ -102,3 +102,68 @@ SKIP: {
 my $nobg = render_qr(textsize => 24, drawbackground => 0);
 unlike($nobg, qr{re f\* [-\d.]+ 0 [\d.]+ [\d.]+ re f\*},
     'drawbackground => 0 suppresses the overflow strips');
+
+# GitHub #8: the text baseline is fixed at 1.5 while bars start at 9, so the
+# clearance was sized for the old hard-coded 10 point. Above roughly 12pt the
+# digits printed into the bar region -- a scannability failure. The bars are
+# now lifted by the extra digit height so the clearance is preserved.
+sub geometry {
+    my (%opt) = @_;
+    my $pdf = render(%opt);
+    my @bottoms;
+    while ($pdf =~ /[\d.]+ [\d.]+ m\n [\d.]+ ([\d.]+) l/g) { push @bottoms, $1 }
+    my ($size, $baseline) = $pdf =~ m{/Ft1 ([\d.]+) Tf [-\d.]+ ([-\d.]+) Td};
+    my ($box_h) = $pdf =~ m{0 0 [\d.]+ ([\d.]+) re};
+    return unless @bottoms && defined $size;
+    my ($lowest) = sort { $a <=> $b } @bottoms;
+    # 0.622 em is the Courier digit bbox height above the baseline.
+    return { top => $baseline + 0.622 * $size, bar => $lowest, box => $box_h };
+}
+
+my $g10 = geometry();
+my $g20 = geometry(textsize => 20);
+ok($g10 && $g20, 'geometry extracted for both sizes') or diag('regex did not match');
+
+SKIP: {
+    skip 'geometry not extractable', 4 unless $g10 && $g20;
+
+    cmp_ok($g10->{top}, '<', $g10->{bar},
+        'GitHub #8: digits clear the bars at the default size');
+    cmp_ok($g20->{top}, '<', $g20->{bar},
+        'GitHub #8: digits clear the bars at 20 point');
+
+    # The clearance must be preserved, not merely positive -- that is what
+    # distinguishes lifting the bars from getting lucky on a threshold.
+    my $c10 = $g10->{bar} - $g10->{top};
+    my $c20 = $g20->{bar} - $g20->{top};
+    cmp_ok(abs($c20 - $c10), '<', 0.01,
+        'GitHub #8: clearance is preserved, not eroded, at a larger size')
+        or diag("default clearance $c10, large clearance $c20");
+
+    # Lifting the bars without growing the box would push them out the top.
+    cmp_ok($g20->{box}, '>', $g10->{box},
+        'GitHub #8: background box grows with the lift');
+}
+
+# GitHub #6: $qrcode was set by QRcode() and never reset, so every later
+# barcode in the same process took the QR rendering branch. This surfaced
+# while writing the #8 geometry tests above -- they measured QR output
+# instead of Code39 because the QR tests earlier in this file ran first.
+{
+    my $qr = render_qr();
+    my @modules = $qr =~ /[\d.]+ [\d.]+ 1 1 re/g;
+    ok(scalar @modules > 100,
+        'GitHub #6: QRcode still draws its modules')
+        or diag('module rects: ' . scalar @modules);
+
+    # A linear barcode after a QRcode must use the linear text placement
+    # (baseline 1.5), not the QR quiet-zone placement (a negative offset).
+    my $after = render();
+    my ($baseline) = $after =~ m{/Ft1 [\d.]+ Tf [-\d.]+ ([-\d.]+) Td};
+    is($baseline, '1.5',
+        'GitHub #6: Code39 after a QRcode uses the linear text placement');
+
+    my @bars = $after =~ /[\d.]+ [\d.]+ m\n [\d.]+ ([\d.]+) l/g;
+    ok(scalar @bars > 0,
+        'GitHub #6: Code39 after a QRcode still draws bars');
+}

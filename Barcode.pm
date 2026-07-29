@@ -16,6 +16,15 @@ my $qrcode = 0;
 # drift apart.
 our $DEFAULT_TEXTSIZE = 10;
 
+# Courier digits reach 622/1000 em above the baseline (AFM bbox ury for the
+# digit glyphs). Not the cap height, which is 562 and would under-measure.
+my $DIGIT_HEIGHT_EM = 0.622;
+
+# How far general2() lifts the bars to keep them clear of taller text. Set by
+# standardEnd() before it calls general2(); left at 0 by the EAN and UPC
+# paths, which render their text at a fixed 10 point and must not move.
+my $textLift = 0;
+
 sub init
 {  %default   = ( value           => '0000000',
                   x               => 0,
@@ -43,6 +52,8 @@ sub init
    $sPtn   = '';
    @sizes  = ();
    $length = 0;
+   $textLift = 0;
+   $qrcode = 0;
    $value  = ''
 }
 
@@ -86,12 +97,12 @@ sub general2
    }
    else
    {  $length     = 20 + (length($sPtn) * 0.9);
-   my $height  = 38;
-   my $step    = 9;
+   $height     = 38 + $textLift;
+   my $step    = 9 + $textLift;
    my $prolong = 0;
    if ($default{'prolong'} > 1)
    {  $prolong  = $default{'prolong'};
-      $height  = 26 + ($prolong * 12);
+      $height  = 26 + ($prolong * 12) + $textLift;
    }
    if ($default{'drawbackground'})
    {   $str .= "$default{'background'} rg\n";
@@ -136,21 +147,37 @@ sub general3
    prFontSize($sizes[1]);
 }
 
+# textsize reaches a PDF text operator directly, so a non-numeric or
+# non-positive value would emit an invalid or invisible Tf rather than
+# failing anywhere useful.
+sub text_size
+{  my $textsize = $default{'textsize'};
+   return $textsize
+       if defined $textsize && $textsize =~ /^\d*\.?\d+$/ && $textsize > 0;
+   carp "Ignoring invalid textsize '"
+        . (defined $textsize ? $textsize : 'undef')
+        . "', using $DEFAULT_TEXTSIZE";
+   return $DEFAULT_TEXTSIZE;
+}
+
 sub standardEnd
-{  general2();
+{  my $textsize = text_size();
+
+   # The text baseline is fixed at 1.5 while the bars start at 9, so the
+   # 7.5 units of clearance were sized for the old hard-coded 10 point.
+   # Anything taller than that would print digits into the bar region --
+   # a scannability failure, not a cosmetic one. Lift the bars by the
+   # extra digit height instead, which preserves the clearance and leaves
+   # output at the default size untouched. Must be set before general2()
+   # draws anything.
+   $textLift = ($default{'text'} && $textsize > $DEFAULT_TEXTSIZE)
+             ? ($textsize - $DEFAULT_TEXTSIZE) * $DIGIT_HEIGHT_EM
+             : 0;
+
+   general2();
 
    if ($default{'text'})
    {   my @vec = prFont('C');
-       # textsize reaches a PDF text operator directly, so a non-numeric
-       # or non-positive value would emit an invalid or invisible Tf
-       # rather than failing anywhere useful.
-       my $textsize = $default{'textsize'};
-       unless (defined $textsize && $textsize =~ /^\d*\.?\d+$/ && $textsize > 0)
-       {   carp "Ignoring invalid textsize '"
-                . (defined $textsize ? $textsize : 'undef')
-                . "', using $DEFAULT_TEXTSIZE";
-           $textsize = $DEFAULT_TEXTSIZE;
-       }
        prFontSize($textsize);
        # Courier is monospaced at 600/1000 em, so this is the exact
        # rendered width, not an estimate. At the default size of 10 it
@@ -691,8 +718,10 @@ sub UPCE
 
 sub QRcode
 {  eval 'require GD::Barcode::QRcode';
-   $qrcode = 1;
+   # init() resets per-call state, so the flag has to be set after it,
+   # not before -- setting it first meant init() wiped it.
    init();
+   $qrcode = 1;
    my %param = @_;
    for (keys %param)
     {   my $lc = lc($_);
@@ -962,6 +991,10 @@ no other parameter needs adjusting when this changes.
                                 y         => 600,
                                 value     => '1234567890',
                                 textsize  => 14);
+
+The bars are raised to keep clear of the text as it grows, so a large
+C<textsize> does not print digits over the bottom of the barcode.  The
+background box grows to match.  Output at the default size is unchanged.
 
 If the text comes out wider than the barcode itself -- a short value at a
 large size -- the background is extended on both sides to hold it, rather
