@@ -16,9 +16,15 @@ my $qrcode = 0;
 # drift apart.
 our $DEFAULT_TEXTSIZE = 10;
 
-# Courier digits reach 622/1000 em above the baseline (AFM bbox ury for the
-# digit glyphs). Not the cap height, which is 562 and would under-measure.
-my $DIGIT_HEIGHT_EM = 0.622;
+# Tallest glyph, in em above the baseline, that a barcode value can put on
+# the page: 750/1000, the AFM bbox ury of Courier's bar glyph. Code128
+# accepts the whole printable ASCII range, so the ceiling has to cover it
+# rather than just the digits at 622 -- Code39 alone reaches 662 with a
+# dollar sign, which overprinted above 32 point. Deliberately the maximum
+# and not a per-value measurement: over-lifting costs a little whitespace
+# above the text, under-lifting puts glyphs through the bars and breaks
+# scanning.
+my $GLYPH_HEIGHT_EM = 0.75;
 
 # How far general2() lifts the bars to keep them clear of taller text. Set by
 # standardEnd() before it calls general2(); left at 0 by the EAN and UPC
@@ -171,7 +177,8 @@ sub standardEnd
    # output at the default size untouched. Must be set before general2()
    # draws anything.
    $textLift = ($default{'text'} && $textsize > $DEFAULT_TEXTSIZE)
-             ? ($textsize - $DEFAULT_TEXTSIZE) * $DIGIT_HEIGHT_EM
+             ? ($textsize * $GLYPH_HEIGHT_EM)
+               - ($DEFAULT_TEXTSIZE * $GLYPH_HEIGHT_EM)
              : 0;
 
    general2();
