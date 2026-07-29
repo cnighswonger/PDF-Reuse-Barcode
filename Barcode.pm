@@ -6,7 +6,7 @@ use strict;
 use warnings;
 use Carp;
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 my ($str, $xsize, $ysize, $height, $sPtn, @sizes, $length, $value, %default);
 my $qrcode = 0;
