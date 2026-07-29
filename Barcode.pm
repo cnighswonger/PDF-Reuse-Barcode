@@ -24,6 +24,10 @@ our $DEFAULT_TEXTSIZE = 10;
 # and not a per-value measurement: over-lifting costs a little whitespace
 # above the text, under-lifting puts glyphs through the bars and breaks
 # scanning.
+#
+# The font itself goes higher -- accented capitals reach 805 -- but every
+# symbology here rejects high-byte characters at validation, so those
+# glyphs cannot reach the page through this module.
 my $GLYPH_HEIGHT_EM = 0.75;
 
 # How far general2() lifts the bars to keep them clear of taller text. Set by
